@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CertiMorph - Bulk + Retry + Excel + Manual Fake</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    .certificate-canvas { max-width:100%; display:block; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); }
+    .certificate-wrapper { margin-bottom:1rem; padding:0.75rem; background:#fff; border-radius:0.5rem; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+    .qr-result { margin-top:0.5rem; color:#2563eb; font-weight:600; word-break:break-all; }
+    #resultsContainer { max-height:65vh; overflow:auto; padding-top:0.5rem; }
+    .progress-bar { height:10px; background:#e6e6e6; border-radius:999px; overflow:hidden; margin-top:6px; }
+    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#34d399,#06b6d4); transition:width .25s ease; }
+    .small-muted { font-size:0.85rem; color:#6b7280; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+  <!-- HEADER -->
+  <header class="bg-white shadow">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <h1 class="text-xl font-bold text-blue-600">CertiMorph</h1>
+      <nav>
+        <ul class="flex space-x-6">
+          <li><a href="#" class="hover:text-blue-600">Home</a></li>
+          <li><a href="#features" class="hover:text-blue-600">Features</a></li>
+          <li><a href="#uploadSection" class="hover:text-blue-600">Validate</a></li>
+          <li><a href="#" class="hover:text-blue-600">Contact</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-16">
+    <div class="max-w-6xl mx-auto px-6 text-center">
+      <h2 class="text-3xl md:text-4xl font-bold mb-4">Next-Generation Certificate Validation</h2>
+      <p class="text-lg max-w-2xl mx-auto mb-6">Secure, reliable, and AI-powered analysis for academic and professional certificates.</p>
+      <button onclick="showUpload()" class="bg-white text-blue-600 font-semibold px-6 py-3 rounded-lg shadow hover:bg-gray-100">Get Started</button>
+    </div>
+  </section>
+
+  <!-- UPLOAD SECTION -->
+  <section id="uploadSection" class="hidden max-w-5xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-bold text-center mb-4">Upload Certificates for Validation</h2>
+    <p class="text-center text-gray-600 mb-6">Supports multiple JPG, JPEG, PNG, and PDF files.</p>
+
+    <div class="border-2 border-dashed border-gray-300 p-6 rounded-lg text-center bg-white">
+      <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.pdf" class="hidden" multiple onchange="handleFiles(event)">
+      <label for="fileInput" class="cursor-pointer bg-blue-600 text-white px-6 py-3 rounded-lg shadow hover:bg-blue-700">Choose Files</label>
+      <p id="fileName" class="mt-3 text-gray-500"></p>
+
+      <div class="mt-4 flex justify-center gap-3 items-center">
+        <label class="small-muted">Workers:</label>
+        <select id="concurrencySelect" class="rounded-md border px-2 py-1">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+        </select>
+
+        <button id="exportBtn" class="bg-green-600 text-white px-4 py-2 rounded-md hidden">Export to Excel</button>
+      </div>
+    </div>
+
+    <div id="resultsContainer" class="mt-6"></div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="max-w-6xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-bold text-center mb-6">Advanced Features for Modern Validation</h2>
+    <p class="text-center text-slate-600 max-w-2xl mx-auto mb-12">CertiMorph combines cutting-edge AI with practical usability to deliver the most comprehensive certificate validation solution available.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="p-6 bg-white shadow rounded-xl">
+        <h3 class="font-semibold mb-2">Shape Analysis</h3>
+        <p class="text-slate-600 text-sm">AI analyzes layout geometry, seal positions, text blocks, and logo placement to detect structural anomalies.</p>
+      </div>
+      <div class="p-6 bg-white shadow rounded-xl">
+        <h3 class="font-semibold mb-2">Morph Hashing</h3>
+        <p class="text-slate-600 text-sm">Generates unique digital fingerprints from visual structure, metadata, and embedded security features.</p>
+      </div>
+      <div class="p-6 bg-white shadow rounded-xl">
+        <h3 class="font-semibold mb-2">Forgery Heatmap</h3>
+        <p class="text-slate-600 text-sm">Highlights trusted and suspicious zones with clear visual cues using advanced anomaly detection algorithms.</p>
+      </div>
+      <div class="p-6 bg-white shadow rounded-xl">
+        <h3 class="font-semibold mb-2">Offline Mode</h3>
+        <p class="text-slate-600 text-sm">Run validation locally without internet connectivity, perfect for rural institutions and field work.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-gray-100 py-6 mt-12">
+    <div class="max-w-6xl mx-auto px-6 flex justify-between text-sm text-gray-600">
+      <p>&copy; 2025 CertiMorph. All rights reserved.</p>
+      <div class="flex space-x-4"><a href="#" class="hover:text-blue-600">Privacy</a><a href="#" class="hover:text-blue-600">Terms</a></div>
+    </div>
+  </footer>
+
+  <script>
+    // helpers
+    function sleep(ms){ return new Promise(res=>setTimeout(res, ms)); }
+    function showUpload(){ document.getElementById("uploadSection").classList.remove("hidden"); window.scrollTo({ top: document.getElementById("uploadSection").offsetTop, behavior: "smooth" }); }
+    function isValidURL(s){ try{ new URL(s); return true;}catch{return false;} }
+
+    const resultsStore = [];
+
+    async function handleFiles(e){
+      const files = Array.from(e.target.files || []);
+      if(!files.length) return;
+      document.getElementById("fileName").innerText = `Uploaded: ${files.length} file(s)`;
+      const resultsContainer = document.getElementById("resultsContainer");
+      resultsContainer.innerHTML = "";
+      resultsStore.length = 0;
+      document.getElementById("exportBtn").classList.add("hidden");
+
+      const concurrency = parseInt(document.getElementById("concurrencySelect").value || "3");
+      const tasks = files.map((f, i) => ({ file: f, index: i }));
+      const wrappers = tasks.map(t => createWrapper(t.file, t.index, resultsContainer));
+
+      await limitedParallel(tasks, concurrency, async (task) => {
+        const ui = wrappers[task.index];
+        await processFile(task.file, task.index, ui);
+      });
+
+      if(resultsStore.length) document.getElementById("exportBtn").classList.remove("hidden");
+    }
+
+    async function limitedParallel(items, concurrency, worker) {
+      let idx = 0;
+      const runners = new Array(concurrency).fill(0).map(async () => {
+        while(true){
+          const i = idx++;
+          if(i >= items.length) break;
+          try { await worker(items[i]); } catch(err){ console.error(err); }
+        }
+      });
+      await Promise.all(runners);
+    }
+
+    function createWrapper(file, index, container){
+      const wrapper = document.createElement("div");
+      wrapper.className = "certificate-wrapper";
+      wrapper.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="text-sm font-medium text-gray-700">File ${index+1}: ${file.name}</div>
+          <div class="flex gap-2">
+            <button id="retry_${index}" class="text-sm px-3 py-1 rounded bg-yellow-400 text-white">Retry</button>
+            <button id="fake_${index}" class="text-sm px-3 py-1 rounded bg-red-500 text-white">Mark as Fake</button>
+          </div>
+        </div>
+        <canvas id="canvas_${index}" class="certificate-canvas border rounded-lg shadow mx-auto block"></canvas>
+        <div class="progress-bar"><div id="progress_${index}" class="progress-fill"></div></div>
+        <div id="text_${index}" class="text-sm text-gray-700 whitespace-pre-line mt-2">Waiting...</div>
+        <div id="rating_${index}" class="mt-2 font-semibold"></div>
+        <div id="confidence_${index}" class="text-sm text-gray-600"></div>
+        <div id="qr_${index}" class="qr-result"></div>
+      `;
+      container.appendChild(wrapper);
+
+      wrapper.querySelector(`#retry_${index}`).addEventListener('click', () => {
+        const canvas = document.getElementById(`canvas_${index}`);
+        reRunValidation(canvas, index);
+      });
+
+      wrapper.querySelector(`#fake_${index}`).addEventListener('click', () => {
+        ratingEl = document.getElementById(`rating_${index}`);
+        confidenceEl = document.getElementById(`confidence_${index}`);
+        qrEl = document.getElementById(`qr_${index}`);
+        ratingEl.innerText = "Result: Fake ❌ (Manually marked)";
+        confidenceEl.innerText = "Confidence Score: 0%";
+        qrEl.innerText = "";
+        resultsStore[index] = {
+          filename: `File ${index+1}`,
+          rating: "Fake ❌",
+          confidence: 0,
+          qr: "",
+          sample_text: ""
+        };
+      });
+
+      return {
+        canvas: wrapper.querySelector(`#canvas_${index}`),
+        progress: wrapper.querySelector(`#progress_${index}`),
+        textEl: wrapper.querySelector(`#text_${index}`),
+        ratingEl: wrapper.querySelector(`#rating_${index}`),
+        confidenceEl: wrapper.querySelector(`#confidence_${index}`),
+        qrEl: wrapper.querySelector(`#qr_${index}`)
+      };
+    }
+
+    async function processFile(file, index, ui){
+      const { canvas, progress, textEl } = ui;
+      progress.style.width = "2%";
+      textEl.innerText = "Loading...";
+
+      if(file.type === "application/pdf"){
+        const arrBuf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrBuf) }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 2 });
+        const tmp = document.createElement("canvas");
+        tmp.width = viewport.width; tmp.height = viewport.height;
+        const tctx = tmp.getContext("2d");
+        await page.render({ canvasContext: tctx, viewport }).promise;
+        canvas.width = tmp.width; canvas.height = tmp.height;
+        canvas.getContext("2d").drawImage(tmp,0,0);
+      } else {
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        await new Promise(res => img.onload = res);
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        canvas.getContext("2d").drawImage(img,0,0);
+      }
+
+      const maxDisplay = 600;
+      const scale = canvas.width > maxDisplay ? maxDisplay / canvas.width : 1;
+      canvas.style.width = `${canvas.width * scale}px`;
+      canvas.style.height = `${canvas.height * scale}px`;
+
+      await runValidation(canvas, index);
+    }
+
+    async function reRunValidation(canvas, index){
+      const textEl = document.getElementById(`text_${index}`);
+      const progressEl = document.getElementById(`progress_${index}`);
+      progressEl.style.width = "2%";
+      textEl.innerText = "Retrying validation...";
+      await runValidation(canvas, index);
+    }
+
+    async function runValidation(canvas, index){
+      const ctx = canvas.getContext("2d");
+      const progress = document.getElementById(`progress_${index}`);
+      const textEl = document.getElementById(`text_${index}`);
+      const ratingEl = document.getElementById(`rating_${index}`);
+      const confidenceEl = document.getElementById(`confidence_${index}`);
+      const qrEl = document.getElementById(`qr_${index}`);
+
+      progress.style.width = "5%";
+      textEl.innerText = "Running OCR...";
+      try {
+        const ocr = await Tesseract.recognize(canvas, 'eng', {
+          logger: m => { if(m.status === 'recognizing text'){ const p = 5 + Math.floor((m.progress || 0) * 50); progress.style.width = `${p}%`; } }
+        });
+
+        const words = (ocr.data && ocr.data.words) || [];
+        const text = (ocr.data && ocr.data.text) || "";
+
+        let messages = [];
+        let score = 0;
+        let totalChecks = 0;
+        messages.push(`Extracted text sample: "${text.substring(0,120)}..."`);
+        const positive = ["university","college","institute","government"];
+        const suspicious = ["fake","sample","demo"];
+
+        words.forEach(w => {
+          const word = (w.text||"").toLowerCase();
+          const x0 = w.bbox.x0, y0 = w.bbox.y0;
+          const wBox = w.bbox.x1 - w.bbox.x0, hBox = w.bbox.y1 - w.bbox.y0;
+          if(positive.some(k=>word.includes(k))){
+            score+=2; totalChecks+=2;
+            messages.push(`The word "${w.text}" suggests authenticity.`);
+            ctx.strokeStyle="green"; ctx.lineWidth=2; ctx.strokeRect(x0,y0,wBox,hBox);
+            ctx.fillStyle="rgba(0,255,0,0.18)"; ctx.fillRect(x0,y0,wBox,hBox);
+          }
+          if(suspicious.some(k=>word.includes(k))){
+            score-=3; totalChecks+=3;
+            messages.push(`The word "${w.text}" looks suspicious.`);
+            ctx.strokeStyle="red"; ctx.lineWidth=2; ctx.strokeRect(x0,y0,wBox,hBox);
+            ctx.fillStyle="rgba(255,0,0,0.22)"; ctx.fillRect(x0,y0,wBox,hBox);
+          }
+        });
+
+        const rating = score>=4 ? "Excellent ✅ (Certificate looks genuine and also,verify the certificate on the respective website by clicking the provided URL)" : score>=2 ? "Good 👍 and also,verify the certificate on the respective website by clicking the provided URL" : score>=0 ? "Average ⚠️" : "Suspicious ❌ and also,verify the certificate on the respective website by clicking the provided URL";
+        const confidence = totalChecks>0 ? Math.max(0, Math.min(100, Math.round((score/totalChecks)*100))) : 50;
+
+        textEl.innerText = messages.join("\n\n");
+        ratingEl.innerText = `Result: ${rating}`;
+        confidenceEl.innerText = `Confidence Score: ${confidence}%`;
+        progress.style.width = "60%";
+
+        qrEl.innerText = "Scanning for QR code...";
+        const qr = await scanQR(canvas, pct => { progress.style.width = `${60 + Math.floor(pct*35)}%`; });
+        if(qr && qr.data){
+          const qtext = qr.data;
+          qrEl.innerHTML = isValidURL(qtext) ? `🔗 QR Code detected: <a href="${qtext}" target="_blank" rel="noopener">${qtext}</a>` : `📄 QR Code detected: ${qtext}`;
+        } else {
+          qrEl.innerText = "❌ No QR code found (try higher resolution)";
+        }
+
+        progress.style.width = "100%";
+
+        resultsStore[index] = {
+          filename: `File ${index+1}`,
+          rating,
+          confidence,
+          qr: qr ? (qr.data || "") : "",
+          sample_text: text.substring(0,200)
+        };
+
+      } catch(err){
+        console.error(err);
+        textEl.innerText = "Validation failed: " + (err.message||err);
+      }
+    }
+
+    function preprocessImage(ctx, width, height){
+      try{
+        const imageData = ctx.getImageData(0,0,width,height);
+        const d = imageData.data;
+        let min=255, max=0;
+        for(let i=0;i<d.length;i+=4){
+          const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+          d[i]=d[i+1]=d[i+2]=g;
+          if(g<min) min=g;
+          if(g>max) max=g;
+        }
+        const range = max-min||1;
+        for(let i=0;i<d.length;i+=4){
+          const v = (d[i]-min)*255/range;
+          d[i]=d[i+1]=d[i+2]=v;
+        }
+        ctx.putImageData(imageData,0,0);
+        return ctx.getImageData(0,0,width,height);
+      }catch(e){ return null; }
+    }
+
+    async function scanQR(originalCanvas, progressCb){
+      const scales = [1,1.5,2];
+      const rotations = [0,90,180,270];
+      const gridSize = 4;
+      let found = null;
+      for(let si=0; si<scales.length && !found; si++){
+        const s = scales[si];
+        const w = Math.floor(originalCanvas.width * s);
+        const h = Math.floor(originalCanvas.height * s);
+        const temp = document.createElement("canvas"); temp.width=w; temp.height=h;
+        const tctx = temp.getContext("2d"); tctx.drawImage(originalCanvas,0,0,w,h);
+        preprocessImage(tctx,w,h);
+        if(progressCb) progressCb(0.05 + si*0.05);
+        for(let ri=0; ri<rotations.length && !found; ri++){
+          const rot = rotations[ri];
+          const working = document.createElement("canvas");
+          working.width = (rot===90||rot===270)? h: w;
+          working.height = (rot===90||rot===270)? w: h;
+          const wctx = working.getContext("2d");
+          wctx.translate(working.width/2, working.height/2);
+          wctx.rotate(rot*Math.PI/180);
+          wctx.drawImage(temp, -w/2, -h/2);
+          try{ const full = wctx.getImageData(0,0,working.width, working.height); const q = jsQR(full.data, full.width, full.height, { inversionAttempts: "attemptBoth" }); if(q){ found = { q, scale: s, rot, workingWidth: working.width, workingHeight: working.height, tile: null }; break; } }catch(e){}
+          const cw = Math.floor(working.width / gridSize);
+          const ch = Math.floor(working.height / gridSize);
+          for(let gx=0; gx<gridSize && !found; gx++){
+            for(let gy=0; gy<gridSize && !found; gy++){
+              try{ const crop = wctx.getImageData(gx*cw, gy*ch, cw, ch); const cqr = jsQR(crop.data, crop.width, crop.height, { inversionAttempts: "attemptBoth" }); if(cqr){ found = { q: cqr, scale: s, rot, workingWidth: working.width, workingHeight: working.height, tile: { gx, gy, cw, ch } }; break; } }catch(e){}
+              if(progressCb) progressCb(0.2 + ((gx + gy/gridSize)/ (gridSize*gridSize)) * 0.4); await sleep(5);
+            }
+          }
+          await sleep(8);
+        }
+      }
+      if(!found) return null;
+      drawMappedBox(found, originalCanvas, found.q);
+      return found.q;
+    }
+
+    function drawMappedBox(foundInfo, origCanvas, qr){
+      const ctx = origCanvas.getContext("2d");
+      const loc = qr.location;
+      const corners = [
+        loc.topLeftCorner || loc.topLeft,
+        loc.topRightCorner || loc.topRight,
+        loc.bottomRightCorner || loc.bottomRight,
+        loc.bottomLeftCorner || loc.bottomLeft
+      ].filter(Boolean);
+      const points = [];
+
+      if(foundInfo.tile){
+        const { tile, scale, rot, workingWidth, workingHeight } = foundInfo;
+        const tx = tile.gx * tile.cw; const ty = tile.gy * tile.ch;
+        function mapToWorking(p){ return { x: p.x + tx, y: p.y + ty }; }
+        function unrotate(pt){ const cx=workingWidth/2,cy=workingHeight/2,dx=pt.x-cx,dy=pt.y-cy,ang=-rot*Math.PI/180; return { x: dx*Math.cos(ang)-dy*Math.sin(ang)+cx, y: dx*Math.sin(ang)+dy*Math.cos(ang)+cy }; }
+        function toOriginal(pt){ const u=unrotate(pt); return { x: u.x/scale, y: u.y/scale }; }
+        corners.forEach(p => { const wp = mapToWorking(p); points.push(toOriginal(wp)); });
+      } else if(foundInfo.tile===null && foundInfo.scale){
+        const { scale, rot, workingWidth, workingHeight } = foundInfo;
+        function unrotate(pt){ const cx=workingWidth/2,cy=workingHeight/2,dx=pt.x-cx,dy=pt.y-cy,ang=-rot*Math.PI/180; return { x: dx*Math.cos(ang)-dy*Math.sin(ang)+cx, y: dx*Math.sin(ang)+dy*Math.cos(ang)+cy }; }
+        function toOriginal(pt){ const u=unrotate(pt); return { x: u.x/scale, y: u.y/scale }; }
+        corners.forEach(p=> points.push(toOriginal(p)));
+      } else points.push(...corners);
+
+      if(points.length>=4){
+        ctx.strokeStyle="orange"; ctx.lineWidth=3;
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for(let i=1;i<4;i++) ctx.lineTo(points[i].x, points[i].y);
+        ctx.closePath(); ctx.stroke();
+      }
+    }
+
+    document.getElementById("exportBtn").addEventListener("click", ()=>{
+      if(!resultsStore.length) return;
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(resultsStore);
+      XLSX.utils.book_append_sheet(wb, ws, "Results");
+      XLSX.writeFile(wb, "certificate_validation.xlsx");
+    });
+
+  </script>
+</body>
+</html>
